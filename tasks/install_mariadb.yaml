@@ -34,19 +34,41 @@
       - systemctl enable mariadb.service
   become: yes
 - name: Adds Python MySQL support on Debian/Ubuntu
-    apt: pkg="python-mysqldb" state=present
-      when: ansible_os_family == 'Debian'
-- name: Set the root password 
-    mysql_user: login_user=root login_password= "{{ root_password }}" user=root password= "{{ root_password }}"
-- name: Secure the root user for IPV6 localhost (::1)
-    mysql_user: login_user=root login_password= "{{ root_password }}" user=root password= "{{ root_password }}" host="::1"
-- name: Secure the root user for IPV4 localhost (127.0.0.1)
-    mysql_user: login_user=root login_password= "{{ root_password }}" user=root password= "{{ root_password }}" host="127.0.0.1"
-- name: Secure the root user for localhost domain
-    mysql_user: login_user=root login_password= "{{ root_password }}" user=root password= "{{ root_password }}" host="localhost"
-- name: Secure the root user for server_hostname domain
-    mysql_user: login_user=root login_password= "{{ root_password }}" user=root password= "{{ root_password }}" host= "{{ ansible_fqdn }}"
-- name: Deletes anonymous server user
-    mysql_user: login_user=root login_password= "{{ root_password }}" user="" host_all=yes state=absent
-- name: Removes the test database
-    mysql_db: login_user=root login_password= "{{ root_password }}" db=test state=absent
+    apt:
+      name: python-mysqldb
+      state: latest
+  become: yes
+  tags: secure
+- name: 1. set mysql root pass
+  mysql_user:
+      login_user: root
+      login_password: "{{ msi_mysql_root_pass }}"
+      user: root
+      host_all: yes
+      password: "{{ msi_new_mysql_root_pass }}"
+  become: yes
+- name: 3. remove anonymous users
+  mysql_user:
+      login_user: root
+      login_password: "{{ msi_new_mysql_root_pass }}"
+      user: ''
+      host_all: yes
+      state: absent
+  become: yes
+- name: 4. remove test database
+  mysql_db:
+      login_user: root
+      login_password: "{{ msi_new_mysql_root_pass }}"
+      db: test
+      state: absent
+  become: yes
+  register: remove_testdb
+- name: 4.1 remove test database priviledges
+  block:
+    - shell: >
+        mysql -u root -p{{ msi_new_mysql_root_pass }}
+        -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
+    - shell: mysql -u root -p{{ msi_new_mysql_root_pass }} -e "FLUSH PRIVILEGES"
+  when: remove_testdb is changed
+  become: yes
+
