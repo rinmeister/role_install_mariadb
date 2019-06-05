@@ -34,7 +34,7 @@
       - systemctl enable mariadb.service
   become: yes
 - name: Adds Python MySQL support on Debian/Ubuntu
-    apt:
+  apt:
       name: python-mysqldb
       state: latest
   become: yes
